@@ -109,7 +109,6 @@ def fetch_comments(id, num=-1):
             'author': author
         })
     
-    print('comments: ', len(comments))
     return comments
 
 def write_json(data, filename='soup.json'):
