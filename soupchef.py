@@ -29,6 +29,7 @@ def fetch_urls(urls):
         if r:
             soup = BeautifulSoup(r.text, 'lxml')
             id = re.search(r'rezepte/(\d+)/', url)[1]
+            comments = fetch_comments(id)
             obj = {
                 'id': id,
                 'title': get_title(soup),
@@ -38,7 +39,8 @@ def fetch_urls(urls):
                 'category_breadcrumbs': get_breadcrumbs(soup),
                 'ingredients': get_ingredients(soup),
                 'text': get_text(soup),
-                'comments': fetch_comments(id)
+                'comment_count': len(comments),
+                'comments': comments
             }
             data.append(obj)
 
@@ -132,7 +134,7 @@ def main():
     mode_group.add_argument('-l', '--link', action='store_true',
         help='Fetches the entered URLs. Can be combined with and -r.')
     
-    argparser.add_argument('-o', default='soupchef', dest='outfolder',
+    argparser.add_argument('-o', default='crawl', dest='outfolder',
         help='output folder')
 
     argparser.add_argument('-n', default=10, type=int, dest='num',
