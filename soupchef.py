@@ -5,12 +5,13 @@ import os
 import json
 import datetime
 import re
+import math
 
 from time import sleep
 from random import randint
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 
 def fetch_daily():
     url = 'https://www.chefkoch.de/recipe-of-the-day/rss'
@@ -86,6 +87,39 @@ def fetch_url(url):
         }
 
     return data
+
+def fetch_search(search_strings):
+    print('search_string', search_strings)
+    search_strings = [re.sub(r'\s', '+', string.strip()) for string in search_strings]
+    
+    num_pages = math.ceil(args.num/30)
+    print('num_pages', num_pages)
+
+    urls = []
+    for search in search_strings:
+        print('fetching', search)
+        for page in range(num_pages):
+            print('processing page', page+1)
+            results = fetch_search_page(search, page+1)
+            print('len_results', len(results))
+            urls.extend(results)
+            if len(results) < 30:
+                break
+
+    fetch_urls(urls[:args.num])
+
+def fetch_search_page(search_string, page_number):
+    startindex = (page_number - 1) * 30
+    url = f'https://www.chefkoch.de/rs/s{startindex}/{search_string}/Rezepte.html'
+
+    strainer = SoupStrainer('script', type="application/ld+json")
+
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
+    json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
+    data = json.loads(json_raw)
+    return [x['url'] for x in data['itemListElement']]
+
 
 def get_id(url):
     return re.search(r'rezepte/(\d+)/', url)[1]
@@ -194,7 +228,7 @@ def main():
     mode_group.add_argument('-d', '--daily', action='store_true',
         help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
     mode_group.add_argument('-s', '--search', action='store_true',
-        help='Searches for the entered term and fetches the results. Can be combined with -n, -c and -r.')
+        help='Searches for the entered term and fetches the results. Multiple searches need to be separated by spaces. Can be combined with -n, -c and -r.')
     mode_group.add_argument('-u', '--url', action='store_true',
         help='Fetches the entered URLs. Can be combined with -c and -r.')
     mode_group.add_argument('-i', '--id', action='store_true',
@@ -206,8 +240,8 @@ def main():
     argparser.add_argument('-o', default='crawl', dest='outfolder',
         help='output folder')
 
-    argparser.add_argument('-n', default=10, type=int, dest='num',
-        help='number of elements to fetch')
+    argparser.add_argument('-n', default=30, type=int, dest='num',
+        help='number of elements to fetch. For search multiples of 30 are sensible values.')
 
     argparser.add_argument('-r', default=0, type=int, dest='recursion_depth',
         help='number of recursion steps')
@@ -224,7 +258,7 @@ def main():
     if args.daily:
         fetch_daily()
     elif args.search:
-        print("Not yet implemented.")
+        fetch_search(args.input)
     elif args.url:
         fetch_urls(args.input)
     elif args.id:
