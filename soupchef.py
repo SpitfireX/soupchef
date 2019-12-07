@@ -77,7 +77,9 @@ def get_title(soup):
     return soup.h1.text.strip()
 
 def get_author(soup):
-    return soup.find('a', {'class': 'bi-profile'}).text.strip().split(' ')[-1]
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'author' in tag.text, type='application/ld+json', )
+    json_data = json.loads(json_raw.text)
+    return json_data['author']['name']
 
 def get_keywords(soup):
     json_raw = soup.find(lambda tag:tag.name=='script' and 'keywords' in tag.text, type='application/ld+json', )
