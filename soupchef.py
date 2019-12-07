@@ -91,6 +91,14 @@ def get_text(soup):
 
     return div.text.strip()
 
+def get_related_ids(soup):
+    related_h = soup.find('h2', text=re.compile(r'^Weitere Rezepte.*'))
+    related_div = related_h.find_next_sibling('div')
+    related_links = related_div.find_all('a')
+    related_ids = [get_id(x['href']) for x in related_links]
+    
+    return related_ids
+
 def fetch_comments(id, num=-1):
     if num < 0:
         num = args.comment_num
