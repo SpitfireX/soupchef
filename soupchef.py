@@ -6,6 +6,9 @@ import json
 import datetime
 import re
 
+from time import sleep
+from random import randint
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -31,18 +34,33 @@ def fetch_urls(urls):
     except FileNotFoundError:
         index = []
 
-    new_ids = []
+    stack = [urls]
 
-    for url in urls:
-        id = get_id(url)
-        if id not in index:
-            data = fetch_url(url)
-            write_json(data)
-            index.append(id)
-            new_ids.append(id)
+    for level in stack:
+        print('fetching', len(level), 'urls on level', len(stack))
+        print(level)
+        
+        new_ids = []
+        related_urls = []
 
-    with open(index_path, mode='a', encoding='utf-8') as outfile:
-        outfile.writelines(line + '\n' for line in new_ids)
+        for url in level:
+            id = get_id(url)
+            if args.force_all or id not in index:
+                print('fetching', id)
+                data = fetch_url(url)
+                write_json(data)
+                index.append(id)
+                new_ids.append(id)
+                related_urls.extend(get_url(x) for x in data['related'])
+                sleep(randint(100, 500)/1000)
+            else:
+                print('skipping', id, 'duplicate')
+
+        if len(stack) < args.recursion_depth and len(related_urls) > 0:
+            stack.append(related_urls)
+
+        with open(index_path, mode='a', encoding='utf-8') as outfile:
+            outfile.writelines(line + '\n' for line in new_ids)
 
 
 def fetch_url(url):
@@ -175,6 +193,9 @@ def main():
         help='Fetches the entered URLs. Can be combined with -c and -r.')
     mode_group.add_argument('-i', '--id', action='store_true',
         help='Fetches the entered IDs. Can be combined with -c and -r.')
+    
+    argparser.add_argument('-f', action='store_true', dest='force_all',
+        help="force fetch all elements, don't skip already existing")
     
     argparser.add_argument('-o', default='crawl', dest='outfolder',
         help='output folder')
