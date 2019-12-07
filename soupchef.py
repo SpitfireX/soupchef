@@ -136,11 +136,13 @@ def main():
 
     mode_group = argparser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument('-d', '--daily', action='store_true',
-        help='Downloads the recipe of the day, no further input required. Can be combined with -r.')
+        help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
     mode_group.add_argument('-s', '--search', action='store_true',
-        help='Searches for the entered term and fetches the results. Can be combined with -n and -r.')
-    mode_group.add_argument('-l', '--link', action='store_true',
-        help='Fetches the entered URLs. Can be combined with and -r.')
+        help='Searches for the entered term and fetches the results. Can be combined with -n, -c and -r.')
+    mode_group.add_argument('-u', '--url', action='store_true',
+        help='Fetches the entered URLs. Can be combined with -c and -r.')
+    mode_group.add_argument('-i', '--id', action='store_true',
+        help='Fetches the entered IDs. Can be combined with -c and -r.')
     
     argparser.add_argument('-o', default='crawl', dest='outfolder',
         help='output folder')
