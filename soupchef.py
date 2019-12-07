@@ -17,34 +17,61 @@ def fetch_daily():
     item = soup.item
     url = item.link.text
     
-    data = fetch_urls([url])
-    filename = datetime.datetime.now().strftime("%Y%m%d") + '_daily.json'
-    write_json(data, filename)
+    fetch_urls([url])
+
+def fetch_ids(ids):
+    urls = [get_url(id) for id in ids]
+    fetch_urls(urls)
 
 def fetch_urls(urls):
-    data = []
+    index_path = args.outfolder + '/index.dat'
+    try:
+        with open(index_path, mode='r', encoding='utf-8-sig') as infile:
+            index = [line.strip() for line in infile]
+    except FileNotFoundError:
+        index = []
+
+    new_ids = []
 
     for url in urls:
-        r = requests.get(url)
-        if r:
-            soup = BeautifulSoup(r.text, 'lxml')
-            id = re.search(r'rezepte/(\d+)/', url)[1]
-            comments = fetch_comments(id)
-            obj = {
-                'id': id,
-                'title': get_title(soup),
-                'author': get_author(soup),
-                'keywords': get_keywords(soup),
-                'category': get_category(soup),
-                'category_breadcrumbs': get_breadcrumbs(soup),
-                'ingredients': get_ingredients(soup),
-                'text': get_text(soup),
-                'comment_count': len(comments),
-                'comments': comments
-            }
-            data.append(obj)
+        id = get_id(url)
+        if id not in index:
+            data = fetch_url(url)
+            write_json(data)
+            index.append(id)
+            new_ids.append(id)
+
+    with open(index_path, mode='a', encoding='utf-8') as outfile:
+        outfile.writelines(line + '\n' for line in new_ids)
+
+
+def fetch_url(url):
+    r = requests.get(url)
+    if r:
+        soup = BeautifulSoup(r.text, 'lxml')
+        id = get_id(url)
+        comments = fetch_comments(id)
+        data = {
+            'id': id,
+            'title': get_title(soup),
+            'author': get_author(soup),
+            'keywords': get_keywords(soup),
+            'category': get_category(soup),
+            'category_breadcrumbs': get_breadcrumbs(soup),
+            'related': get_related_ids(soup),
+            'ingredients': get_ingredients(soup),
+            'text': get_text(soup),
+            'comment_count': len(comments),
+            'comments': comments
+        }
 
     return data
+
+def get_id(url):
+    return re.search(r'rezepte/(\d+)/', url)[1]
+
+def get_url(id):
+    return f'https://chefkoch.de/rezepte/{id}/'
 
 def get_title(soup):
     return soup.h1.text.strip()
@@ -121,7 +148,10 @@ def fetch_comments(id, num=-1):
     
     return comments
 
-def write_json(data, filename='soup.json'):
+def write_json(data, filename=None):
+    if not filename:
+        filename = data['id'] + '.json'
+
     outfolder = os.path.expanduser(args.outfolder)
     filepath = outfolder + '/' + filename
 
@@ -166,8 +196,11 @@ def main():
         fetch_daily()
     elif args.search:
         print("Not yet implemented.")
-    elif args.link:
-        print("Not yet implemented.")
+    elif args.url:
+        fetch_urls(args.input)
+    elif args.id:
+        fetch_ids(args.input)
+
 
 if __name__ == "__main__":
     main()
