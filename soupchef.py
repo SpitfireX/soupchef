@@ -49,9 +49,10 @@ def fetch_urls(urls):
                 print('fetching', id)
                 data = fetch_url(url)
                 write_json(data)
-                index.append(id)
-                new_ids.append(id)
                 related_urls.extend(get_url(x) for x in data['related'])
+                if id not in index:
+                    index.append(id)
+                    new_ids.append(id)
                 sleep(randint(100, 500)/1000)
             else:
                 print('skipping', id, 'duplicate')
@@ -73,6 +74,7 @@ def fetch_url(url):
             'id': id,
             'title': get_title(soup),
             'author': get_author(soup),
+            'images': get_images(soup),
             'keywords': get_keywords(soup),
             'category': get_category(soup),
             'category_breadcrumbs': get_breadcrumbs(soup),
@@ -145,6 +147,10 @@ def get_related_ids(soup):
     related_ids = [get_id(x['href']) for x in related_links]
     
     return related_ids
+
+def get_images(soup):
+    images = soup.find_all('amp-img', src=re.compile(r'.+rezepte.+bilder.+960x640.+'))
+    return [x['src'] for x in images]
 
 def fetch_comments(id, num=-1):
     if num < 0:
