@@ -9,6 +9,7 @@ import json
 import datetime
 import re
 import math
+import logging
 
 from time import sleep
 from random import randint
@@ -21,8 +22,16 @@ from index import open_index
 def fetch_daily() -> None:
     '''Fetches the daily recipe from the RSS feed via fetch_urls(). The output will be saved in the output folder.'''
     url = 'https://www.chefkoch.de/recipe-of-the-day/rss'
+    
+    logger.info('Fetching recipe of the day')
+    
     r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'xml')
+    
+    if r:
+        soup = BeautifulSoup(r.text, 'xml')
+    else:
+        logger.error(f'Could not fetch RSS feed, status code {r.status_code}. Exiting.')
+        exit(1)
 
     item = soup.item
     url = item.link.text
@@ -37,6 +46,8 @@ def fetch_ids(ids: list) -> None:
     ids: list
         A list of valid IDss.
     '''
+
+    logger.debug(f'\tConverting IDs {ids}')
 
     urls = [id_to_url(id) for id in ids]
     fetch_urls(urls)
@@ -55,10 +66,11 @@ def fetch_urls(urls: list) -> None:
     '''
     
     stack = [urls]
+    total_fetched = 0
 
     for level in stack:
-        print('fetching', len(level), 'URL(s) on recursion step', len(stack)-1)
-        print(level)
+        logger.info(f'Fetching {len(level)} URL(s) on recursion step {len(stack)-1} of {args.recursion_depth}')
+        logger.debug(level)
         
         new_ids = []
         related_urls = []
@@ -66,19 +78,23 @@ def fetch_urls(urls: list) -> None:
         for url in level:
             id = url_to_id(url)
             if args.force_all or id not in index:
-                print('fetching', id)
+                logger.info(f'Fetching {id}')
                 data = fetch_url(url)
-                _write_json(data)
-                related_urls.extend(id_to_url(x) for x in data['related'])
-                index.add(id)
-                new_ids.append(id)
+                if data:
+                    total_fetched += 1
+                    _write_json(data)
+                    related_urls.extend(id_to_url(x) for x in data['related'])
+                    index.add(id)
+                    new_ids.append(id)
                 # rate limiting TODO: user control
                 sleep(randint(100, 500)/1000)
             else:
-                print('skipping', id, 'duplicate')
+                logger.debug(f'Skipping duplicate {id}')
 
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
+    
+    logger.info(f'Fetched a total of {total_fetched} recipes.')
 
 def fetch_url(url: str) -> dict:
     '''Fetches all relevant data from a single URL. The number of comments to fetch is determined by the -c command line argument.
@@ -88,8 +104,12 @@ def fetch_url(url: str) -> dict:
     url: str
         'A valid URL
     '''
+
+    data = {}
     r = requests.get(url)
+
     if r:
+        logger.debug(f'\tFetching {url}')
         soup = BeautifulSoup(r.text, 'lxml')
         id = url_to_id(url)
         comments = _fetch_comments(id)
@@ -107,6 +127,8 @@ def fetch_url(url: str) -> dict:
             'comment_count': len(comments),
             'comments': comments
         }
+    else:
+        logger.warning(f'Could not fetch {url} status {r.status_code}')
 
     return data
 
@@ -120,24 +142,28 @@ def fetch_search(search_strings: list) -> None:
         A list of search terms. Search terms may contain multiple words.
     '''
 
-    print('search_string', search_strings)
+    logger.info(f'Fetching search terms: {search_strings}')
     search_strings = [re.sub(r'\s', '+', string.strip()) for string in search_strings]
     
     num_pages = math.ceil(args.num/30)
-    print('num_pages', num_pages)
+    logger.debug(f'\tNumber of pages to fetch: {num_pages}')
 
     urls = []
     for search in search_strings:
-        print('fetching', search)
+        logger.debug(f'\tSearch term: {search}')
         for page in range(num_pages):
-            print('processing page', page+1)
+            logger.debug(f'\tProcessing page {page+1}')
             results = _fetch_search_page(search, page+1)
-            print('len_results', len(results))
+            logger.debug(f'\tReceived {len(results)} results')
             urls.extend(results)
             if len(results) < 30:
                 break
+    
+    urls = urls[:args.num]
+    
+    logger.info(f'Fetched {len(urls)} search results total')
 
-    fetch_urls(urls[:args.num])
+    fetch_urls(urls)
 
 def _fetch_search_page(search_string: str, page_number: int) -> list:
     '''Fetches a single search result page and returns all recipe URLs as a list
@@ -177,16 +203,23 @@ def _fetch_comments(id: str, num: int = -1) -> list:
     else:
         api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?offset=0&order=1&orderBy=1'
     
-    comments_raw = requests.get(api_comments_url).json()
-    
+
+    r = requests.get(api_comments_url)
+
     comments = []
-    for elem in comments_raw['results']:
-        text = elem['text']
-        author = elem['owner']['username']
-        comments.append({
-            'text': text,
-            'author': author
-        })
+    if r:
+        comments_raw = r.json()
+
+        for elem in comments_raw['results']:
+            text = elem['text']
+            author = elem['owner']['username']
+            comments.append({
+                'text': text,
+                'author': author
+            })
+        logger.debug(f'\tFetched {len(comments)} comments')
+    else:
+        logger.warning('Could not fetch comments')
     
     return comments
 
@@ -214,8 +247,11 @@ def id_to_url(id: str) -> str:
 
 def _get_title(soup: BeautifulSoup) -> str:
     '''Extracts the title of the recipe from the page and returns it as a string.'''
+    
+    title = soup.h1.text.strip()
+    logger.debug(f'\tTitle: {title}')
 
-    return soup.h1.text.strip()
+    return title
 
 def _get_author(soup: BeautifulSoup) -> str:
     '''Extracts the author name from JSON data embedded in the page and returns it as a string.'''
@@ -313,9 +349,12 @@ def _write_json(data: dict, filename: str = None) -> None:
         json.dump(data, outfile, ensure_ascii=False, indent=2)
 
 def main():
+    ### command line argument parsing
+
     argparser = argparse.ArgumentParser(description='Fetches recipes and their metadata from a big German cooking portal.')
 
-    # Mutually exclusive main modes
+    # mutually exclusive main modes
+
     mode_group = argparser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument('-d', '--daily', action='store_true',
         help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
@@ -326,29 +365,61 @@ def main():
     mode_group.add_argument('-i', '--id', action='store_true',
         help='Fetches the entered IDs. Can be combined with -c and -r.')
     
+    # setting flags
+
     argparser.add_argument('-f', action='store_true', dest='force_all',
-        help="force fetch all elements, don't skip already existing")
+        help="Force fetch all elements, don't skip already existing.")
     
     argparser.add_argument('-o', default='crawl', dest='outfolder',
-        help='output folder')
+        help='Sets the output folder.')
 
     argparser.add_argument('-n', default=30, type=int, dest='num',
-        help='number of elements to fetch. For search multiples of 30 are sensible values.')
+        help='Sets the number of elements to fetch. For search multiples of 30 are sensible values.')
 
     argparser.add_argument('-r', default=0, type=int, dest='recursion_depth',
-        help='number of recursion steps')
+        help='Sets the number of recursion steps to take.')
 
     argparser.add_argument('-c', default=100, type=int, dest='comment_num',
-        help='number of comments to load per recipe')
+        help='Sets the number of comments to load per recipe.')
 
+    # verbosity flags
+
+    argparser.add_argument('-q', action='store_true', dest='quiet',
+        help='Suppress any console output')
+
+    argparser.add_argument('-v', action='store_const', const=logging.INFO, dest='verbosity', default=logging.WARNING,
+        help='Show all console output.')
+    
+    argparser.add_argument('-vv', action='store_const', const=logging.DEBUG, dest='verbosity',
+        help='Show debug console output.')
+
+    # blanket input
     argparser.add_argument('input', nargs='*',
         help='input arguments')
 
     global args
     args = argparser.parse_args()
 
+    ### logging setup
+
+    global logger
+    logger = logging.getLogger('soupchef')
+    logger.setLevel(args.verbosity)
+
+    formatter = logging.Formatter('[%(name)-14s][%(levelname)-8s]: %(message)s')
+
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    
+    if not args.quiet: 
+        logger.addHandler(ch)
+
+    ### index setup
+
     global index
     index = open_index(args.outfolder + '/index.dat')
+
+    ### main mode selection
 
     if args.daily:
         fetch_daily()
