@@ -13,6 +13,8 @@ from random import randint
 import requests
 from bs4 import BeautifulSoup, SoupStrainer
 
+from index import open_index
+
 def fetch_daily():
     url = 'https://www.chefkoch.de/recipe-of-the-day/rss'
     r = requests.get(url)
@@ -28,17 +30,10 @@ def fetch_ids(ids):
     fetch_urls(urls)
 
 def fetch_urls(urls):
-    index_path = args.outfolder + '/index.dat'
-    try:
-        with open(index_path, mode='r', encoding='utf-8-sig') as infile:
-            index = [line.strip() for line in infile]
-    except FileNotFoundError:
-        index = []
-
     stack = [urls]
 
     for level in stack:
-        print('fetching', len(level), 'urls on level', len(stack))
+        print('fetching', len(level), 'URL(s) on recursion step', len(stack)-1)
         print(level)
         
         new_ids = []
@@ -51,19 +46,14 @@ def fetch_urls(urls):
                 data = fetch_url(url)
                 write_json(data)
                 related_urls.extend(get_url(x) for x in data['related'])
-                if id not in index:
-                    index.append(id)
-                    new_ids.append(id)
+                index.add(id)
+                new_ids.append(id)
                 sleep(randint(100, 500)/1000)
             else:
                 print('skipping', id, 'duplicate')
 
-        if len(stack) < args.recursion_depth and len(related_urls) > 0:
+        if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
-
-        with open(index_path, mode='a', encoding='utf-8') as outfile:
-            outfile.writelines(line + '\n' for line in new_ids)
-
 
 def fetch_url(url):
     r = requests.get(url)
@@ -254,6 +244,9 @@ def main():
 
     global args
     args = argparser.parse_args()
+
+    global index
+    index = open_index(args.outfolder + '/index.dat')
 
     if args.daily:
         fetch_daily()
