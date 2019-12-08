@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+'''This is the main module of soupchef, a webcrawler/data extractor for a big german cooking portal.
+The main intention behint soupchef is to provide a flexible command line utility for diverse crawling tasks.'''
+
 import argparse
 import os
 import json
@@ -15,7 +18,8 @@ from bs4 import BeautifulSoup, SoupStrainer
 
 from index import open_index
 
-def fetch_daily():
+def fetch_daily() -> None:
+    '''Fetches the daily recipe from the RSS feed via fetch_urls(). The output will be saved in the output folder.'''
     url = 'https://www.chefkoch.de/recipe-of-the-day/rss'
     r = requests.get(url)
     soup = BeautifulSoup(r.text, 'xml')
@@ -25,11 +29,31 @@ def fetch_daily():
     
     fetch_urls([url])
 
-def fetch_ids(ids):
-    urls = [get_url(id) for id in ids]
+def fetch_ids(ids: list) -> None:
+    '''Fetches a list of IDs after conversion to URLs via fetch_urls().
+    
+    Parameters
+    ----------
+    ids: list
+        A list of valid IDss.
+    '''
+
+    urls = [id_to_url(id) for id in ids]
     fetch_urls(urls)
 
-def fetch_urls(urls):
+def fetch_urls(urls: list) -> None:
+    '''Fetches a list of URLs via fetch_url(). The number of recursion steps to take is determined by the -r command line argument.
+    The output will be saved in the output folder.
+
+    When using recursion the crawler works breadth first. On each step all URLs will be fetched and their related recipe URLs
+    provide the next recursion step.
+    
+    Parameters
+    ----------
+    urls: list
+        A list of valid URLs.
+    '''
+    
     stack = [urls]
 
     for level in stack:
@@ -40,14 +64,15 @@ def fetch_urls(urls):
         related_urls = []
 
         for url in level:
-            id = get_id(url)
+            id = url_to_id(url)
             if args.force_all or id not in index:
                 print('fetching', id)
                 data = fetch_url(url)
-                write_json(data)
-                related_urls.extend(get_url(x) for x in data['related'])
+                _write_json(data)
+                related_urls.extend(id_to_url(x) for x in data['related'])
                 index.add(id)
                 new_ids.append(id)
+                # rate limiting TODO: user control
                 sleep(randint(100, 500)/1000)
             else:
                 print('skipping', id, 'duplicate')
@@ -55,30 +80,46 @@ def fetch_urls(urls):
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
 
-def fetch_url(url):
+def fetch_url(url: str) -> dict:
+    '''Fetches all relevant data from a single URL. The number of comments to fetch is determined by the -c command line argument.
+    
+    Parameters
+    ----------
+    url: str
+        'A valid URL
+    '''
     r = requests.get(url)
     if r:
         soup = BeautifulSoup(r.text, 'lxml')
-        id = get_id(url)
-        comments = fetch_comments(id)
+        id = url_to_id(url)
+        comments = _fetch_comments(id)
         data = {
             'id': id,
-            'title': get_title(soup),
-            'author': get_author(soup),
-            'images': get_images(soup),
-            'keywords': get_keywords(soup),
-            'category': get_category(soup),
-            'category_breadcrumbs': get_breadcrumbs(soup),
-            'related': get_related_ids(soup),
-            'ingredients': get_ingredients(soup),
-            'text': get_text(soup),
+            'title': _get_title(soup),
+            'author': _get_author(soup),
+            'images': _get_images(soup),
+            'keywords': _get_keywords(soup),
+            'category': _get_category(soup),
+            'category_breadcrumbs': _get_breadcrumbs(soup),
+            'related': _get_related_ids(soup),
+            'ingredients': _get_ingredients(soup),
+            'text': _get_recipe_text(soup),
             'comment_count': len(comments),
             'comments': comments
         }
 
     return data
 
-def fetch_search(search_strings):
+def fetch_search(search_strings: list) -> None:
+    '''Fetches a list of search strings via _fetch_search_page() and fetch_urls(). The number of recipes to fetch per search string is 
+    defined by the -n command line argument. The output will be saved in the output folder.
+    
+    Parameters
+    ----------
+    search_strings: list
+        A list of search terms. Search terms may contain multiple words.
+    '''
+
     print('search_string', search_strings)
     search_strings = [re.sub(r'\s', '+', string.strip()) for string in search_strings]
     
@@ -90,7 +131,7 @@ def fetch_search(search_strings):
         print('fetching', search)
         for page in range(num_pages):
             print('processing page', page+1)
-            results = fetch_search_page(search, page+1)
+            results = _fetch_search_page(search, page+1)
             print('len_results', len(results))
             urls.extend(results)
             if len(results) < 30:
@@ -98,7 +139,17 @@ def fetch_search(search_strings):
 
     fetch_urls(urls[:args.num])
 
-def fetch_search_page(search_string, page_number):
+def _fetch_search_page(search_string: str, page_number: int) -> list:
+    '''Fetches a single search result page and returns all recipe URLs as a list
+    
+    Parameters
+    ----------
+    search_string: str
+        The string to be searched. May not contain whitespace, instead, words ar separated by +.
+    page_number: int
+        The page number of the search results to get.
+    '''
+    page_number = int(page_number)
     startindex = (page_number - 1) * 30
     url = f'https://www.chefkoch.de/rs/s{startindex}/{search_string}/Rezepte.html'
 
@@ -110,73 +161,14 @@ def fetch_search_page(search_string, page_number):
     data = json.loads(json_raw)
     return [x['url'] for x in data['itemListElement']]
 
-
-def get_id(url):
-    return re.search(r'rezepte/(\d+)/', url)[1]
-
-def get_url(id):
-    return f'https://chefkoch.de/rezepte/{id}/'
-
-def get_title(soup):
-    return soup.h1.text.strip()
-
-def get_author(soup):
-    json_raw = soup.find(lambda tag:tag.name=='script' and 'author' in tag.text, type='application/ld+json', )
-    json_data = json.loads(json_raw.text)
-    return json_data['author']['name']
-
-def get_keywords(soup):
-    json_raw = soup.find(lambda tag:tag.name=='script' and 'keywords' in tag.text, type='application/ld+json', )
-    json_data = json.loads(json_raw.text)
-    return json_data['keywords']
-
-def get_category(soup):
-    json_raw = soup.find(lambda tag:tag.name=='script' and 'recipeCategory' in tag.text, type='application/ld+json', )
-    json_data = json.loads(json_raw.text)
-    return json_data['recipeCategory']
-
-def get_breadcrumbs(soup):
-    breadcrumbs_raw = soup.find('div', class_='ds-container').ol.text.strip()
-    breadcrumbs = breadcrumbs_raw.split('\ue409')
-    breadcrumbs = [x.strip() for x in breadcrumbs[1:]]
-    return breadcrumbs
-
-def get_ingredients(soup):
-    heading = soup.find('h2', text='Zutaten')
-    parent = heading.parent
-    rows = parent.find_all('tr')
-
-    ingredients = []
-
-    for row in rows:
-        data = row.find_all('td')
-        if len(data) > 0:
-            name = (data[1].text.strip())
-            amount = ' '.join(data[0].text.strip().split())
-            if name:
-                ingredients.append({'name':name, 'amount':amount})
+def _fetch_comments(id: str, num: int = -1) -> list:
+    '''Gets comments via the undocumented official JSON-API and returns them as a list of comment objects
+    with the structure
+        Comment:
+            text:   str
+            author: str
+    '''
     
-    return ingredients
-
-def get_text(soup):
-    heading = soup.find('h2', text='Zubereitung')
-    div = heading.find_next_sibling('div')
-
-    return div.text.strip()
-
-def get_related_ids(soup):
-    related_h = soup.find('h2', text=re.compile(r'^Weitere Rezepte.*'))
-    related_div = related_h.find_next_sibling('div')
-    related_links = related_div.find_all('a')
-    related_ids = [get_id(x['href']) for x in related_links]
-    
-    return related_ids
-
-def get_images(soup):
-    images = soup.find_all('amp-img', src=re.compile(r'.+rezepte.+bilder.+960x640.+'))
-    return [x['src'] for x in images]
-
-def fetch_comments(id, num=-1):
     if num < 0:
         num = args.comment_num
     
@@ -198,7 +190,116 @@ def fetch_comments(id, num=-1):
     
     return comments
 
-def write_json(data, filename=None):
+def url_to_id(url: str) -> str:
+    '''Converts an URL into a valid ID
+    
+    Parameters
+    ----------
+    url: str
+        A valid URL
+    '''
+
+    return re.search(r'rezepte/(\d+)/', url)[1]
+
+def id_to_url(id: str) -> str:
+    '''Converts an ID into a valid URL
+    
+    Parameters
+    ----------
+    id: str
+        A valid ID
+    '''
+
+    return f'https://chefkoch.de/rezepte/{id}/'
+
+def _get_title(soup: BeautifulSoup) -> str:
+    '''Extracts the title of the recipe from the page and returns it as a string.'''
+
+    return soup.h1.text.strip()
+
+def _get_author(soup: BeautifulSoup) -> str:
+    '''Extracts the author name from JSON data embedded in the page and returns it as a string.'''
+
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'author' in tag.text, type='application/ld+json', )
+    json_data = json.loads(json_raw.text)
+    return json_data['author']['name']
+
+def _get_keywords(soup: BeautifulSoup) -> list:
+    ''''Extracts the recipe keywords from JSON data embedded in the page and returns them as a list of strings.'''
+    
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'keywords' in tag.text, type='application/ld+json', )
+    json_data = json.loads(json_raw.text)
+    return json_data['keywords']
+
+def _get_category(soup: BeautifulSoup) -> str:
+    ''''Extracts the recipe category from JSON data embedded in the page and returns it as a string.'''
+
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'recipeCategory' in tag.text, type='application/ld+json', )
+    json_data = json.loads(json_raw.text)
+    return json_data['recipeCategory']
+
+def _get_breadcrumbs(soup: BeautifulSoup) -> list:
+    '''Extracts the category/navigation breadcrumbs from the page and returns them as a list of strings'''
+
+    breadcrumbs_raw = soup.find('div', class_='ds-container').ol.text.strip()
+    breadcrumbs = breadcrumbs_raw.split('\ue409') # magic icon font symbol, might break
+    breadcrumbs = [x.strip() for x in breadcrumbs[1:]]
+    return breadcrumbs
+
+def _get_ingredients(soup: BeautifulSoup) -> list:
+    '''Extracts the list of ingredients from the page and returns it as a list of ingredient objects
+    with the structure
+        Ingredient:
+            name:   str
+            amount: str
+    '''
+
+    heading = soup.find('h2', text='Zutaten')
+    parent = heading.parent
+    # find all table rows from the surrounding object, there can be multiple tables
+    rows = parent.find_all('tr')
+
+    ingredients = []
+
+    # find all the relevant td tags in the rows, there should be two data cells in each row
+    # the first one with the amount of the ingredient and the second one with its name
+    for row in rows:
+        data = row.find_all('td')
+        if len(data) > 0:
+            name = (data[1].text.strip())
+            amount = ' '.join(data[0].text.strip().split())
+            if name:
+                ingredients.append({'name':name, 'amount':amount})
+    
+    return ingredients
+
+def _get_recipe_text(soup: BeautifulSoup) -> str:
+    '''Extracts the recipe text from the page and returns it as a string.'''
+
+    heading = soup.find('h2', text='Zubereitung')
+    div = heading.find_next_sibling('div')
+
+    return div.text.strip()
+
+def _get_related_ids(soup: BeautifulSoup) -> list:
+    '''Extracts the IDs of the related/recommended recipes from the page and returs them as a list of IDs'''
+
+    related_h = soup.find('h2', text=re.compile(r'^Weitere Rezepte.*'))
+    related_div = related_h.find_next_sibling('div')
+    related_links = related_div.find_all('a')
+    related_ids = [url_to_id(x['href']) for x in related_links]
+    
+    return related_ids
+
+def _get_images(soup: BeautifulSoup) -> list:
+    '''Extracts the recipe images from the page and returns them as a list of URLs'''
+
+    images = soup.find_all('amp-img', src=re.compile(r'.+rezepte.+bilder.+960x640.+'))
+    return [x['src'] for x in images]
+
+def _write_json(data: dict, filename: str = None) -> None:
+    '''Writes a capture data structure to a json file in the output folder path set in outfolder.'''
+    
     if not filename:
         filename = data['id'] + '.json'
 
@@ -206,14 +307,15 @@ def write_json(data, filename=None):
     filepath = outfolder + '/' + filename
 
     if not os.path.isdir(outfolder):
-        os.mkdir(outfolder)
+        os.makedirs(outfolder)
 
     with open(filepath, mode='w', encoding='utf-8') as outfile:
         json.dump(data, outfile, ensure_ascii=False, indent=2)
 
 def main():
-    argparser = argparse.ArgumentParser(description='Fetches recipes and their metadata from chefkoch.de')
+    argparser = argparse.ArgumentParser(description='Fetches recipes and their metadata from a big German cooking portal.')
 
+    # Mutually exclusive main modes
     mode_group = argparser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument('-d', '--daily', action='store_true',
         help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
@@ -256,7 +358,6 @@ def main():
         fetch_urls(args.input)
     elif args.id:
         fetch_ids(args.input)
-
 
 if __name__ == "__main__":
     main()
