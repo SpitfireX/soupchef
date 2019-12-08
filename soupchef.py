@@ -342,7 +342,7 @@ def _write_json(data: dict, filename: str = None) -> None:
     outfolder = os.path.expanduser(args.outfolder)
     filepath = outfolder + '/' + filename
 
-    if not os.path.isdir(outfolder):
+    if not os.path.exists(outfolder):
         os.makedirs(outfolder)
 
     with open(filepath, mode='w', encoding='utf-8') as outfile:

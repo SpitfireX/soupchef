@@ -79,7 +79,8 @@ class _Index():
         except FileNotFoundError:
             _logger.info('Index file not found. Creating new one.')
             dirname = os.path.dirname(index_file_path)
-            os.makedirs(dirname)
+            if not os.path.exists(dirname):
+                os.makedirs(dirname)
             self._index = []
         
         signal.signal(signal.SIGINT, self._sigint_handler)
