@@ -89,7 +89,11 @@ def fetch_urls(urls: list) -> None:
                 # rate limiting TODO: user control
                 sleep(randint(100, 500)/1000)
             else:
-                logger.debug(f'Skipping duplicate {id}')
+                if len(stack) == 1:
+                    # always notify the user when URLs in the first step are being skipped
+                    logger.warning(f'Skipping  duplicate {id} on level 0. Use the -f flag to override this behavior.')
+                else:
+                    logger.debug(f'Skipping duplicate {id}')
 
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
@@ -377,7 +381,8 @@ def main():
         help='Sets the number of elements to fetch. For search multiples of 30 are sensible values.')
 
     argparser.add_argument('-r', default=0, type=int, dest='recursion_depth',
-        help='Sets the number of recursion steps to take.')
+        help='''Sets the number of recursion steps to take. Recursion works breadth-first on recommended recipes,
+        i.e. the initial list of recipes will be fetched, then their recommended recipes, then the recommended recipes of the recommended recipes, etc.''')
 
     argparser.add_argument('-c', default=100, type=int, dest='comment_num',
         help='Sets the number of comments to load per recipe.')
@@ -388,7 +393,7 @@ def main():
         help='Suppress any console output')
 
     argparser.add_argument('-v', action='store_const', const=logging.INFO, dest='verbosity', default=logging.WARNING,
-        help='Show all console output.')
+        help='Show informative console output.')
     
     argparser.add_argument('-vv', action='store_const', const=logging.DEBUG, dest='verbosity',
         help='Show debug console output.')
