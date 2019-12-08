@@ -268,8 +268,13 @@ def _get_keywords(soup: BeautifulSoup) -> list:
     ''''Extracts the recipe keywords from JSON data embedded in the page and returns them as a list of strings.'''
     
     json_raw = soup.find(lambda tag:tag.name=='script' and 'keywords' in tag.text, type='application/ld+json', )
-    json_data = json.loads(json_raw.text)
-    return json_data['keywords']
+    keywords = []
+    
+    if json_raw:
+        json_data = json.loads(json_raw.text)
+        keywords = json_data['keywords']
+    
+    return keywords
 
 def _get_category(soup: BeautifulSoup) -> str:
     ''''Extracts the recipe category from JSON data embedded in the page and returns it as a string.'''
