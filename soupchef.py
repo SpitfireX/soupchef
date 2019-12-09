@@ -235,7 +235,11 @@ def _fetch_comments(id: str, num: int = -1) -> list:
 
         for elem in comments_raw['results']:
             text = elem['text']
-            author = elem['owner']['username']
+            owner = elem['owner']
+            if owner:
+                author = owner['username']
+            else:
+                author = None
             comments.append({
                 'text': text,
                 'author': author
