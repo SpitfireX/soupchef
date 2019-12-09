@@ -38,6 +38,25 @@ def fetch_daily() -> None:
     
     fetch_urls([url])
 
+def fetch_random() -> None:
+    '''Fetches a number of random recipes via fetch_urls(). The number of recipes to fetch is determined by the -n flag.
+    The output will be saved in the output folder.'''
+    
+    logger.info(f'Fetching {args.num} random recipe(s)')
+
+    url = 'https://www.chefkoch.de/rezepte/zufallsrezept/'
+    random_urls = []
+    
+    while len(random_urls) < args.num:
+        r = requests.get(url, allow_redirects=False)
+
+        if r:
+            random_url = 'https://chefkoch.de' + r.headers['Location']
+            random_urls.append(random_url)
+            logger.debug(f'\tGot random URL: {random_url}')
+    
+    fetch_urls(random_urls)
+
 def fetch_ids(ids: list) -> None:
     '''Fetches a list of IDs after conversion to URLs via fetch_urls().
     
@@ -373,6 +392,8 @@ def main():
         help='Fetches the entered URLs. Can be combined with -c and -r.')
     mode_group.add_argument('-i', '--id', action='store_true',
         help='Fetches the entered IDs. Can be combined with -c and -r.')
+    mode_group.add_argument('-z', '--random', action='store_true',
+        help='Fetches a number of random recipes. Can be combined with -n, -c and -r.')
     
     # setting flags
 
@@ -439,6 +460,8 @@ def main():
         fetch_urls(args.input)
     elif args.id:
         fetch_ids(args.input)
+    elif args.random:
+        fetch_random()
 
 if __name__ == "__main__":
     main()

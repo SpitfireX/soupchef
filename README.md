@@ -34,6 +34,8 @@ mode arguments:
   -u, --url           Fetches the entered URLs. Can be combined with -c and
                       -r.
   -i, --id            Fetches the entered IDs. Can be combined with -c and -r.
+  -z, --random        Fetches a number of random recipes. Can be combined with
+                      -n, -c and -r.
 
 optional arguments:
   -h, --help          show this help message and exit
