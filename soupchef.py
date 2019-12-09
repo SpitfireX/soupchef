@@ -351,11 +351,14 @@ def _get_recipe_text(soup: BeautifulSoup) -> str:
 
 def _get_related_ids(soup: BeautifulSoup) -> list:
     '''Extracts the IDs of the related/recommended recipes from the page and returs them as a list of IDs'''
-
-    related_h = soup.find('h2', text=re.compile(r'^Weitere Rezepte.*'))
-    related_div = related_h.find_next_sibling('div')
-    related_links = related_div.find_all('a')
-    related_ids = [url_to_id(x['href']) for x in related_links]
+    related_ids = []
+    try:
+        related_h = soup.find('h2', text=re.compile(r'^Weitere Rezepte.*'))
+        related_div = related_h.find_next_sibling('div')
+        related_links = related_div.find_all('a')
+        related_ids = [url_to_id(x['href']) for x in related_links]
+    except:
+        logger.debug('\tNo related recipes found.')
     
     return related_ids
 
