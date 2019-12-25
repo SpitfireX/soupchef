@@ -21,6 +21,16 @@ from bs4 import BeautifulSoup, SoupStrainer
 from index import open_index
 from random_http_headers import random_headers
 
+# sort modes
+_search_sort_modes = {
+    'relevance': '',
+    'daily': 'o1',
+    'date': 'o3',
+    'preptime': 'o4',
+    'difficulty': 'o5',
+    'rating': 'o8'
+}
+
 # global variable that keeps track of the time of the last HTTP request
 _last_request_time = datetime.datetime.now()
 
@@ -255,9 +265,11 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
     page_number: int
         The page number of the search results to get.
     '''
+
     page_number = int(page_number)
     startindex = (page_number - 1) * 30
-    url = f'https://www.chefkoch.de/rs/s{startindex}/{search_string}/Rezepte.html'
+    sort_mode = _search_sort_modes[args.search_sort_mode]
+    url = f'https://www.chefkoch.de/rs/s{startindex}{sort_mode}/{search_string}/Rezepte.html'
 
     strainer = SoupStrainer('script', type="application/ld+json")
 
@@ -484,6 +496,9 @@ def main():
     
     argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
         help='Sets the rate limit for HTTP(S) requests in seconds. The value must either be a single constant (e.g. "0.8") or a range (e.g. "0.25-4") that is used for randomization.')
+
+    argparser.add_argument('--sort', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
+        help='Sets the sort mode for the search results.')
 
     # verbosity flags
 

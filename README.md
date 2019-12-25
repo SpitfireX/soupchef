@@ -55,5 +55,6 @@ optional arguments:
   -q                  Suppress any console output
   -v                  Show informative console output.
   -vv                 Show debug console output.
-
+  --sort {relevance,daily,date,preptime,difficulty,rating}
+                      Sets the sort mode for the search results.
 ```
