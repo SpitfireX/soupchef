@@ -49,6 +49,9 @@ optional arguments:
                       recommended recipes, then the recommended recipes of the
                       recommended recipes, etc.
   -c COMMENT_NUM      Sets the number of comments to load per recipe.
+  -l RATE_LIMIT       Sets the rate limit for HTTP(S) requests in seconds. The
+                      value must either be a single constant (e.g. "0.8") or a
+                      range (e.g. "0.25-4") that is used for randomization.
   -q                  Suppress any console output
   -v                  Show informative console output.
   -vv                 Show debug console output.

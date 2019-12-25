@@ -10,6 +10,7 @@ import datetime
 import re
 import math
 import logging
+import datetime
 
 from time import sleep
 from random import randint
@@ -20,12 +21,67 @@ from bs4 import BeautifulSoup, SoupStrainer
 from index import open_index
 from random_http_headers import random_headers
 
+# global variable that keeps track of the time of the last HTTP request
+_last_request_time = datetime.datetime.now()
+
+def _wait_time() -> int:
+    '''Returns the rate limit set with the -l flag. The flag accepts either a single constant value or a range
+    that is used for randomization. The flag value must be given in seconds. This function returns a value in
+    microseconds.'''
+    
+    frags = args.rate_limit.split('-')
+
+    if len(frags) == 1:
+        try:
+            limit = float(frags[0])
+        except:
+            logger.critical('Specified rate limit is not a decimal number.')
+            exit(1)
+
+        if limit < 0:
+            logger.critical('Specified rate limit must not be negative.')
+            exit(1)
+    elif len(frags) == 2:
+        try:
+            lower = float(frags[0])
+            upper = float(frags[1])
+        except:
+            logger.critical('Specified rate limit range is not in format "decimalnumber-decimalnumber".')
+            exit(1)
+
+        if lower < 0 or upper < 0:
+            logger.critical('Specified rate limit must not be negative.')
+            exit(1)
+
+        limit = randint(lower*1000, upper*1000) / 1000
+    else:
+        logger.critical('Specified rate limit range is not in format "decimalnumber-decimalnumber".')
+        exit(1)
+    
+    return limit * 1000000
+
+def _wait_rate_limit() -> None:
+    '''Blocks until the set rate limit allows a new HTTP request.'''
+
+    global _last_request_time
+
+    rate_limit = _wait_time()
+    time_diff = (datetime.datetime.now() - _last_request_time).microseconds
+    
+    if time_diff < rate_limit:
+        sleep_time = (rate_limit - time_diff) / 1000000
+        logger.debug(f'HTTP Rate Limit: sleeping for {sleep_time} seconds.')
+        sleep(sleep_time)
+    
+    _last_request_time = datetime.datetime.now()
+
 def fetch_daily() -> None:
     '''Fetches the daily recipe from the RSS feed via fetch_urls(). The output will be saved in the output folder.'''
     url = 'https://www.chefkoch.de/recipe-of-the-day/rss'
     
     logger.info('Fetching recipe of the day')
     
+    _wait_rate_limit()
     r = requests.get(url, headers=random_headers())
     
     if r:
@@ -49,6 +105,7 @@ def fetch_random() -> None:
     random_urls = []
     
     while len(random_urls) < args.num:
+        _wait_rate_limit()
         r = requests.get(url, allow_redirects=False, headers=random_headers())
 
         if r:
@@ -106,8 +163,6 @@ def fetch_urls(urls: list) -> None:
                     related_urls.extend(id_to_url(x) for x in data['related'])
                     index.add(id)
                     new_ids.append(id)
-                # rate limiting TODO: user control
-                sleep(randint(100, 500)/1000)
             else:
                 if len(stack) == 1:
                     # always notify the user when URLs in the first step are being skipped
@@ -130,6 +185,7 @@ def fetch_url(url: str) -> dict:
     '''
 
     data = {}
+    _wait_rate_limit()
     r = requests.get(url, headers=random_headers())
 
     if r:
@@ -205,6 +261,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
 
     strainer = SoupStrainer('script', type="application/ld+json")
 
+    _wait_rate_limit()
     r = requests.get(url, headers=random_headers())
     soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
     json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
@@ -231,6 +288,7 @@ def _fetch_comments(id: str, num: int = -1) -> list:
     custom_headers = random_headers()
     # override default since a regular browser would only accept JSON from a JSON URL
     custom_headers['accept'] = 'application/json'
+    _wait_rate_limit()
     r = requests.get(api_comments_url, headers=custom_headers)
 
     comments = []
@@ -420,6 +478,9 @@ def main():
 
     argparser.add_argument('-c', default=100, type=int, dest='comment_num',
         help='Sets the number of comments to load per recipe.')
+    
+    argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
+        help='Sets the rate limit for HTTP(S) requests in seconds. The value must either be a single constant (e.g. "0.8") or a range (e.g. "0.25-4") that is used for randomization.')
 
     # verbosity flags
 
