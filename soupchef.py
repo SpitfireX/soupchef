@@ -18,6 +18,7 @@ import requests
 from bs4 import BeautifulSoup, SoupStrainer
 
 from index import open_index
+from random_http_headers import random_headers
 
 def fetch_daily() -> None:
     '''Fetches the daily recipe from the RSS feed via fetch_urls(). The output will be saved in the output folder.'''
@@ -25,7 +26,7 @@ def fetch_daily() -> None:
     
     logger.info('Fetching recipe of the day')
     
-    r = requests.get(url)
+    r = requests.get(url, headers=random_headers())
     
     if r:
         soup = BeautifulSoup(r.text, 'xml')
@@ -48,7 +49,7 @@ def fetch_random() -> None:
     random_urls = []
     
     while len(random_urls) < args.num:
-        r = requests.get(url, allow_redirects=False)
+        r = requests.get(url, allow_redirects=False, headers=random_headers())
 
         if r:
             random_url = 'https://chefkoch.de' + r.headers['Location']
@@ -129,7 +130,7 @@ def fetch_url(url: str) -> dict:
     '''
 
     data = {}
-    r = requests.get(url)
+    r = requests.get(url, headers=random_headers())
 
     if r:
         logger.debug(f'\tFetching {url}')
@@ -204,7 +205,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
 
     strainer = SoupStrainer('script', type="application/ld+json")
 
-    r = requests.get(url)
+    r = requests.get(url, headers=random_headers())
     soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
     json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
     data = json.loads(json_raw)
@@ -227,7 +228,10 @@ def _fetch_comments(id: str, num: int = -1) -> list:
         api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?offset=0&order=1&orderBy=1'
     
 
-    r = requests.get(api_comments_url)
+    custom_headers = random_headers()
+    # override default since a regular browser would only accept JSON from a JSON URL
+    custom_headers['accept'] = 'application/json'
+    r = requests.get(api_comments_url, headers=custom_headers)
 
     comments = []
     if r:
