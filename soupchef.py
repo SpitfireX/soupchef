@@ -308,12 +308,31 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
 
     strainer = SoupStrainer('script', type="application/ld+json")
 
-    _wait_rate_limit()
-    r = requests.get(url, headers=random_headers())
-    soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
-    json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
-    data = json.loads(json_raw)
-    return [x['url'] for x in data['itemListElement']]
+    for i in range(5):
+        _wait_rate_limit()
+        r = requests.get(url, headers=random_headers())
+        if not r.ok:
+            logger.warning(f'HTTP error code {r.status_code} for search page {page_number} on try #{i}.')
+        else:
+            break
+    
+    result = []
+
+    if r.ok:
+        soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
+        try:
+            json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
+            data = json.loads(json_raw)
+            result = [x['url'] for x in data['itemListElement']]
+        except:
+            logger.error(f'Malformed HTML for search page {page_number}, written to file.')
+            with open('crash_raw.html') as rawf, open('crash_soup.html') as soupf:
+                rawf.write(r.text)
+                soupf.write(soup.prettify())
+    else:
+        logger.error(f'Could not fetch search page {page_number}.')
+    
+    return result
 
 def _fetch_comments(id: str, num: int = -1) -> list:
     '''Gets comments via the undocumented official JSON-API and returns them as a list of comment objects
