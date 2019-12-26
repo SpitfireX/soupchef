@@ -222,6 +222,32 @@ def fetch_url(url: str) -> dict:
 
     return data
 
+def fetch_all() -> None:
+    '''Fetches all recipes. To get a list of all recipes a modified search is used. For that the regular search results are being used, but with an empty search argument.'''
+
+    total = _get_total_recipe_count()
+    total_pages = math.ceil(total/30)
+    logger.info(f'Fetching all recipes with sort Mode "{args.search_sort_mode}":')
+    logger.info(f'\t{total} recipes on {total_pages} pages.')
+    
+
+    args.recursion_depth = 0
+    
+    fetched = 0
+    page = 1
+    while True:
+        logger.info(f'Fetching page: {page} of {total_pages}')
+        urls = _fetch_search_page('', page)
+
+        if len(urls) > 0:
+            fetch_urls(urls)
+            fetched += len(urls)
+            page += 1
+        else:
+            break
+
+    logger.info(f'Fetched a total of {fetched} recipe on {page} pages.')
+
 def fetch_search(search_strings: list) -> None:
     '''Fetches a list of search strings via _fetch_search_page() and fetch_urls(). The number of recipes to fetch per search string is 
     defined by the -n command line argument. The output will be saved in the output folder.
@@ -235,6 +261,8 @@ def fetch_search(search_strings: list) -> None:
     logger.info(f'Fetching search terms: {search_strings}')
     search_strings = [re.sub(r'\s', '+', string.strip()) for string in search_strings]
     
+    logger.info(f'\tSort Mode: {args.search_sort_mode}')
+
     num_pages = math.ceil(args.num/30)
     logger.debug(f'\tNumber of pages to fetch: {num_pages}')
 
@@ -263,7 +291,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
     search_string: str
         The string to be searched. May not contain whitespace, instead, words ar separated by +.
     page_number: int
-        The page number of the search results to get.
+        The page number of the search results to get. 1 is the first page.
     '''
 
     page_number = int(page_number)
@@ -442,6 +470,18 @@ def _get_images(soup: BeautifulSoup) -> list:
     images = soup.find_all('amp-img', src=re.compile(r'.+rezepte.+bilder.+960x640.+'))
     return [x['src'] for x in images]
 
+def _get_total_recipe_count() -> int:
+    '''Finds the current total number of recipes on the website'''
+    
+    url = 'https://www.chefkoch.de/rs/s0/Rezepte.html'
+    strainer = SoupStrainer('h1')
+
+    _wait_rate_limit()
+    r = requests.get(url, headers=random_headers())
+    soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
+
+    return int(soup.h1.span.text.strip().split(' ')[0].replace('.', ''))
+
 def _write_json(data: dict, filename: str = None) -> None:
     '''Writes a capture data structure to a json file in the output folder path set in outfolder.'''
     
@@ -475,6 +515,8 @@ def main():
         help='Fetches the entered IDs. Can be combined with -c and -r.')
     mode_group.add_argument('-z', '--random', action='store_true',
         help='Fetches a number of random recipes. Can be combined with -n, -c and -r.')
+    mode_group.add_argument('-a', '--all', action='store_true',
+        help='Fetches all recipes. Can be combined with -n, -c.')
     
     # setting flags
 
@@ -549,6 +591,8 @@ def main():
         fetch_ids(args.input)
     elif args.random:
         fetch_random()
+    elif args.all:
+        fetch_all()
 
 if __name__ == "__main__":
     main()
