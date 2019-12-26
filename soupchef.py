@@ -308,7 +308,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
 
     strainer = SoupStrainer('script', type="application/ld+json")
 
-    for i in range(5):
+    for i in range(10):
         _wait_rate_limit()
         r = requests.get(url, headers=random_headers())
         if not r.ok:
@@ -322,12 +322,12 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
         soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
         try:
             json_raw = soup.find('script', text=re.compile(r'.+itemListElement.+')).text
-            data = json.loads(json_raw)
+            data = json.loads(json_raw, strict=False)
             result = [x['url'] for x in data['itemListElement']]
-        except:
+        except Exception as e:
             logger.error(f'Malformed HTML for search page {page_number}, written to file.')
-            with open('crash_raw.html') as rawf, open('crash_soup.html') as soupf:
-                rawf.write(r.text)
+            with open('crash_raw.html', mode='w') as rawf, open('crash_soup.html', mode='w') as soupf:
+                rawf.write(json_raw)
                 soupf.write(soup.prettify())
     else:
         logger.error(f'Could not fetch search page {page_number}.')
@@ -628,3 +628,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
