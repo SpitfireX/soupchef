@@ -240,7 +240,7 @@ def fetch_all() -> None:
     args.recursion_depth = 0
     
     fetched = 0
-    page = 1
+    page = args.page
     while True:
         logger.info(f'Fetching page: {page} of {total_pages}')
         urls = _fetch_search_page('', page)
@@ -270,14 +270,15 @@ def fetch_search(search_strings: list) -> None:
     logger.info(f'\tSort Mode: {args.search_sort_mode}')
 
     num_pages = math.ceil(args.num/30)
+    start_page = args.page
     logger.debug(f'\tNumber of pages to fetch: {num_pages}')
 
     urls = []
     for search in search_strings:
         logger.debug(f'\tSearch term: {search}')
-        for page in range(num_pages):
-            logger.debug(f'\tProcessing page {page+1}')
-            results = _fetch_search_page(search, page+1)
+        for page in range(start_page, start_page+num_pages+1):
+            logger.debug(f'\tProcessing page {page}')
+            results = _fetch_search_page(search, page)
             logger.debug(f'\tReceived {len(results)} results')
             urls.extend(results)
             if len(results) < 30:
@@ -514,7 +515,7 @@ def main():
     mode_group.add_argument('-d', '--daily', action='store_true',
         help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
     mode_group.add_argument('-s', '--search', action='store_true',
-        help='Searches for the entered term and fetches the results. Multiple searches need to be separated by spaces. Can be combined with -n, -c and -r.')
+        help='Searches for the entered term and fetches the results. Multiple searches need to be separated by spaces. Can be combined with -n, -c, -r and -p.')
     mode_group.add_argument('-u', '--url', action='store_true',
         help='Fetches the entered URLs. Can be combined with -c and -r.')
     mode_group.add_argument('-i', '--id', action='store_true',
@@ -522,7 +523,7 @@ def main():
     mode_group.add_argument('-z', '--random', action='store_true',
         help='Fetches a number of random recipes. Can be combined with -n, -c and -r.')
     mode_group.add_argument('-a', '--all', action='store_true',
-        help='Fetches all recipes. Can be combined with -n, -c.')
+        help='Fetches all recipes. Can be combined with -n, -c and -p.')
     
     # setting flags
 
@@ -544,6 +545,9 @@ def main():
     
     argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
         help='Sets the rate limit for HTTP(S) requests in seconds. The value must either be a single constant (e.g. "0.8") or a range (e.g. "0.25-4") that is used for randomization.')
+
+    argparser.add_argument('-p', default=1, type=int, dest='page',
+        help='Sets the number of the first page to fetch.')
 
     argparser.add_argument('--sort', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
         help='Sets the sort mode for the search results.')

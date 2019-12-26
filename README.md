@@ -53,6 +53,7 @@ optional arguments:
   -l RATE_LIMIT       Sets the rate limit for HTTP(S) requests in seconds. The
                       value must either be a single constant (e.g. "0.8") or a
                       range (e.g. "0.25-4") that is used for randomization.
+  -p PAGE             Sets the number of the first page to fetch.
   --sort {relevance,daily,date,preptime,difficulty,rating}
                       Sets the sort mode for the search results.
   --index-only        Don't fetch anything and only add the IDs of all
