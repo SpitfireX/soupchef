@@ -152,6 +152,12 @@ def fetch_urls(urls: list) -> None:
         A list of valid URLs.
     '''
     
+    if args.index_only:
+        logger.debug('Adding IDs to index (index-only flag set, not fetching).')
+        for url in urls:
+            index.add(url_to_id(url))
+        return
+
     stack = [urls]
     total_fetched = 0
 
@@ -541,6 +547,9 @@ def main():
 
     argparser.add_argument('--sort', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
         help='Sets the sort mode for the search results.')
+    
+    argparser.add_argument('--index-only', action='store_true', dest='index_only',
+        help="Don't fetch anything and only add the IDs of all operations to the index. This is useful to build a list of IDs for later consumption.")
 
     # verbosity flags
 
