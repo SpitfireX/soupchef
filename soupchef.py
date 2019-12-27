@@ -293,6 +293,17 @@ def fetch_all() -> None:
 
     logger.info(f'Fetched a total of {fetched} recipe on {page} pages.')
 
+def fetch_again() -> None:
+    '''Fetches all recipes in the index again.'''
+
+    logger.info('Refreshing all recipes in the index.')
+
+    args.recursion_depth = 0
+    args.force_all = True
+    args.index_only = False
+
+    fetch_ids(index)
+
 def fetch_search(search_strings: list) -> None:
     '''Fetches a list of search strings via _fetch_search_page() and fetch_urls(). The number of recipes to fetch per search string is 
     defined by the -n command line argument. The output will be saved in the output folder.
@@ -589,7 +600,9 @@ def main():
     mode_group.add_argument('-z', '--random', action='store_true',
         help='Fetches a number of random recipes. Can be combined with -n, -c and -r.')
     mode_group.add_argument('-a', '--all', action='store_true',
-        help='Fetches all recipes. Can be combined with -n, -c and -p.')
+        help='Fetches all recipes. Can be combined with -c and -p.')
+    mode_group.add_argument('--refresh', action='store_true',
+        help='Fetches all recipes in the index again. Can be combined with -c.')
     
     # setting flags
 
@@ -672,6 +685,8 @@ def main():
         fetch_random()
     elif args.all:
         fetch_all()
+    elif args.refresh:
+        fetch_again()
 
 if __name__ == "__main__":
     main()

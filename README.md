@@ -37,6 +37,8 @@ mode arguments:
   -z, --random        Fetches a number of random recipes. Can be combined with
                       -n, -c and -r.
   -a, --all           Fetches all recipes. Can be combined with -n, -c.
+  --refresh           Fetches all recipes in the index again. Can be combined
+                      with -c.
 
 optional arguments:
   -h, --help          show this help message and exit
