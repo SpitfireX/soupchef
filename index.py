@@ -41,6 +41,7 @@ class _Index():
         '''
 
         if element not in self._index:
+            _logger.debug(f'Adding {element} to index.')
             self._index.append(element)
             self._index_file.write(str(element) + '\n')
 

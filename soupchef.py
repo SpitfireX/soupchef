@@ -81,7 +81,7 @@ def _wait_rate_limit() -> None:
     
     if time_diff < rate_limit:
         sleep_time = (rate_limit - time_diff) / 1000000
-        logger.debug(f'HTTP Rate Limit: sleeping for {sleep_time} seconds.')
+        # logger.debug(f'HTTP Rate Limit: sleeping for {sleep_time} seconds.')
         sleep(sleep_time)
     
     _last_request_time = datetime.datetime.now()
@@ -247,6 +247,9 @@ def fetch_url(url: str) -> dict:
         data['comment_count'] = len(comments)
         data['comments'] =comments
 
+    logger.info(f'Fetched {data["id"]} - {data["title"]}')
+    logger.debug(f'\tComments: {data["comment_count"]}')
+
     return data
 
 def fetch_all() -> None:
@@ -397,7 +400,6 @@ def _fetch_comments(id: str, num: int = -1) -> list:
                     'text': text,
                     'author': author
                 })
-            logger.debug(f'\tFetched {len(comments)} comments')
         except Exception as e:
             logger.warning(f'Received malformed JSON data for comments {id}.')
             logger.debug(str(e))
@@ -430,7 +432,6 @@ def _get_title(soup: BeautifulSoup) -> str:
     '''Extracts the title of the recipe from the page and returns it as a string.'''
     
     title = soup.h1.text.strip()
-    logger.debug(f'\tTitle: {title}')
 
     return title
 
