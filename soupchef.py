@@ -199,32 +199,43 @@ def fetch_url(url: str) -> dict:
     url: str
         'A valid URL
     '''
-
+    logger.debug(f'\tFetching {url}')
     data = {}
-    _wait_rate_limit()
-    r = requests.get(url, headers=random_headers())
 
-    if r:
-        logger.debug(f'\tFetching {url}')
+    for i in range(10):
+        _wait_rate_limit()
+        r = requests.get(url, headers=random_headers())
+        if not r.ok:
+            logger.warning(f'HTTP error code {r.status_code} for url {url} on try #{i}.')
+        else:
+            break
+
+    if not r.ok:
+        logger.warning(f'Could not fetch {url} status {r.status_code}')
+    else:
         soup = BeautifulSoup(r.text, 'lxml')
         id = url_to_id(url)
+        try:
+            data = {
+                'id': id,
+                'title': _get_title(soup),
+                'author': _get_author(soup),
+                'images': _get_images(soup),
+                'keywords': _get_keywords(soup),
+                'category': _get_category(soup),
+                'category_breadcrumbs': _get_breadcrumbs(soup),
+                'related': _get_related_ids(soup),
+                'ingredients': _get_ingredients(soup),
+                'text': _get_recipe_text(soup)
+            }
+        except Exception as e:
+            logger.warning(f'Received malformed HTML data for url {url}.')
+            logger.debug(str(e))
+            return data
+
         comments = _fetch_comments(id)
-        data = {
-            'id': id,
-            'title': _get_title(soup),
-            'author': _get_author(soup),
-            'images': _get_images(soup),
-            'keywords': _get_keywords(soup),
-            'category': _get_category(soup),
-            'category_breadcrumbs': _get_breadcrumbs(soup),
-            'related': _get_related_ids(soup),
-            'ingredients': _get_ingredients(soup),
-            'text': _get_recipe_text(soup),
-            'comment_count': len(comments),
-            'comments': comments
-        }
-    else:
-        logger.warning(f'Could not fetch {url} status {r.status_code}')
+        data['comment_count'] = len(comments)
+        data['comments'] =comments
 
     return data
 
@@ -358,23 +369,27 @@ def _fetch_comments(id: str, num: int = -1) -> list:
     r = requests.get(api_comments_url, headers=custom_headers)
 
     comments = []
-    if r:
-        comments_raw = r.json()
-
-        for elem in comments_raw['results']:
-            text = elem['text']
-            owner = elem['owner']
-            if owner:
-                author = owner['username']
-            else:
-                author = None
-            comments.append({
-                'text': text,
-                'author': author
-            })
-        logger.debug(f'\tFetched {len(comments)} comments')
-    else:
+    if not r.ok:
         logger.warning('Could not fetch comments')
+    else:
+        try:
+            comments_raw = json.loads(r.text, strict=False)
+
+            for elem in comments_raw['results']:
+                text = elem['text']
+                owner = elem['owner']
+                if owner:
+                    author = owner['username']
+                else:
+                    author = None
+                comments.append({
+                    'text': text,
+                    'author': author
+                })
+            logger.debug(f'\tFetched {len(comments)} comments')
+        except Exception as e:
+            logger.warning(f'Received malformed JSON data for comments {id}.')
+            logger.debug(str(e))
     
     return comments
 
@@ -628,4 +643,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
