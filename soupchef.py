@@ -12,6 +12,7 @@ import math
 import logging
 import datetime
 import concurrent.futures
+import signal
 
 from time import sleep
 from random import randint
@@ -34,6 +35,9 @@ _search_sort_modes = {
 
 # global variable that keeps track of the time of the last HTTP request
 _last_request_time = datetime.datetime.now()
+
+# global flag set after the program received a shutdown signal
+_shutdown = False
 
 def _wait_time() -> int:
     '''Returns the rate limit set with the -l flag. The flag accepts either a single constant value or a range
@@ -175,7 +179,7 @@ def fetch_urls(urls: list) -> None:
                 if args.force_all or id not in index:
                     _wait_rate_limit()
                     logger.debug(f'Starting fetch {id}')
-                    workers[id] = executor.submit(fetch_url, url)
+                    workers[id] = executor.submit(fetch_and_save_url, url)
                 else:
                     if len(stack) == 1:
                         # always notify the user when URLs in the first step are being skipped
@@ -183,24 +187,35 @@ def fetch_urls(urls: list) -> None:
                     else:
                         logger.debug(f'Skipping duplicate {id}')
 
-        write_data = []
         for id, worker in workers.items():
             data = worker.result()
             if data:
                 total_fetched += 1
-                write_data.append(data)
                 related_urls.extend(id_to_url(x) for x in data['related'])
-                index.add(id)
                 new_ids.append(id)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            for data in write_data:
-                _write_json(data)
 
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
     
     logger.info(f'Fetched a total of {total_fetched} recipes.')
+
+def fetch_and_save_url(url: str) -> dict:
+    '''Fetches all relevant data from a single URL, adds it to the index and saves it to the disk. The number of comments to fetch is determined by the -c command line argument.
+    
+    Parameters
+    ----------
+    url: str
+        'A valid URL
+    '''
+    data = fetch_url(url)
+    
+    if data and not _shutdown:
+        index.add(data['id'])
+    
+    if not _shutdown:
+        _write_json(data)
+    
+    return data
 
 def fetch_url(url: str) -> dict:
     '''Fetches all relevant data from a single URL. The number of comments to fetch is determined by the -c command line argument.
@@ -247,8 +262,7 @@ def fetch_url(url: str) -> dict:
         data['comment_count'] = len(comments)
         data['comments'] =comments
 
-    logger.info(f'Fetched {data["id"]} - {data["title"]}')
-    logger.debug(f'\tComments: {data["comment_count"]}')
+    logger.info(f'Fetched {data["id"]} - {data["title"]} - {data["comment_count"]} comments')
 
     return data
 
@@ -549,7 +563,14 @@ def _write_json(data: dict, filename: str = None) -> None:
     with open(filepath, mode='w', encoding='utf-8') as outfile:
         json.dump(data, outfile, ensure_ascii=False, indent=2)
 
+def _sigint_handler(self, sig, frame):
+    '''Handler to catch SIGINT (Ctrl+C). In case of SIGINT this handler sets the shutdown flag.'''
+    _shutdown = True
+
 def main():
+    ### install signal handlers
+    signal.signal(signal.SIGINT, _sigint_handler)
+
     ### command line argument parsing
 
     argparser = argparse.ArgumentParser(description='Fetches recipes and their metadata from a big German cooking portal.')
