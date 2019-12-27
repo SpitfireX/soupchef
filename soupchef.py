@@ -91,7 +91,6 @@ def fetch_daily() -> None:
     
     logger.info('Fetching recipe of the day')
     
-    _wait_rate_limit()
     r = requests.get(url, headers=random_headers())
     
     if r:
@@ -171,6 +170,7 @@ def fetch_urls(urls: list) -> None:
         for url in level:
             id = url_to_id(url)
             if args.force_all or id not in index:
+                _wait_rate_limit()
                 logger.info(f'Fetching {id}')
                 data = fetch_url(url)
                 if data:
@@ -203,7 +203,6 @@ def fetch_url(url: str) -> dict:
     data = {}
 
     for i in range(10):
-        _wait_rate_limit()
         r = requests.get(url, headers=random_headers())
         if not r.ok:
             logger.warning(f'HTTP error code {r.status_code} for url {url} on try #{i}.')
@@ -254,6 +253,7 @@ def fetch_all() -> None:
     page = args.page
     while True:
         logger.info(f'Fetching page: {page} of {total_pages}')
+        _wait_rate_limit()
         urls = _fetch_search_page('', page)
 
         if len(urls) > 0:
@@ -289,6 +289,7 @@ def fetch_search(search_strings: list) -> None:
         logger.debug(f'\tSearch term: {search}')
         for page in range(start_page, start_page+num_pages+1):
             logger.debug(f'\tProcessing page {page}')
+            _wait_rate_limit()
             results = _fetch_search_page(search, page)
             logger.debug(f'\tReceived {len(results)} results')
             urls.extend(results)
@@ -365,7 +366,6 @@ def _fetch_comments(id: str, num: int = -1) -> list:
     custom_headers = random_headers()
     # override default since a regular browser would only accept JSON from a JSON URL
     custom_headers['accept'] = 'application/json'
-    _wait_rate_limit()
     r = requests.get(api_comments_url, headers=custom_headers)
 
     comments = []
@@ -517,7 +517,6 @@ def _get_total_recipe_count() -> int:
     url = 'https://www.chefkoch.de/rs/s0/Rezepte.html'
     strainer = SoupStrainer('h1')
 
-    _wait_rate_limit()
     r = requests.get(url, headers=random_headers())
     soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
 
