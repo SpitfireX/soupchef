@@ -11,6 +11,7 @@ import re
 import math
 import logging
 import datetime
+import concurrent.futures
 
 from time import sleep
 from random import randint
@@ -166,25 +167,35 @@ def fetch_urls(urls: list) -> None:
         
         new_ids = []
         related_urls = []
+        workers = {}
 
-        for url in level:
-            id = url_to_id(url)
-            if args.force_all or id not in index:
-                _wait_rate_limit()
-                logger.info(f'Fetching {id}')
-                data = fetch_url(url)
-                if data:
-                    total_fetched += 1
-                    _write_json(data)
-                    related_urls.extend(id_to_url(x) for x in data['related'])
-                    index.add(id)
-                    new_ids.append(id)
-            else:
-                if len(stack) == 1:
-                    # always notify the user when URLs in the first step are being skipped
-                    logger.warning(f'Skipping  duplicate {id} on level 0. Use the -f flag to override this behavior.')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            for url in level:
+                id = url_to_id(url)
+                if args.force_all or id not in index:
+                    _wait_rate_limit()
+                    logger.debug(f'Starting fetch {id}')
+                    workers[id] = executor.submit(fetch_url, url)
                 else:
-                    logger.debug(f'Skipping duplicate {id}')
+                    if len(stack) == 1:
+                        # always notify the user when URLs in the first step are being skipped
+                        logger.warning(f'Skipping  duplicate {id} on level 0. Use the -f flag to override this behavior.')
+                    else:
+                        logger.debug(f'Skipping duplicate {id}')
+
+        write_data = []
+        for id, worker in workers.items():
+            data = worker.result()
+            if data:
+                total_fetched += 1
+                write_data.append(data)
+                related_urls.extend(id_to_url(x) for x in data['related'])
+                index.add(id)
+                new_ids.append(id)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            for data in write_data:
+                _write_json(data)
 
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
