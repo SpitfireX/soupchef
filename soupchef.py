@@ -138,8 +138,6 @@ def fetch_ids(ids: list) -> None:
         A list of valid IDss.
     '''
 
-    logger.debug(f'\tConverting IDs {ids}')
-
     urls = [id_to_url(id) for id in ids]
     fetch_urls(urls)
 
@@ -173,7 +171,7 @@ def fetch_urls(urls: list) -> None:
         related_urls = []
         workers = {}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             for url in level:
                 id = url_to_id(url)
                 if args.force_all or id not in index:
@@ -619,7 +617,7 @@ def main():
         help='''Sets the number of recursion steps to take. Recursion works breadth-first on recommended recipes,
         i.e. the initial list of recipes will be fetched, then their recommended recipes, then the recommended recipes of the recommended recipes, etc.''')
 
-    argparser.add_argument('-c', default=100, type=int, dest='comment_num',
+    argparser.add_argument('-c', default=0, type=int, dest='comment_num',
         help='Sets the number of comments to load per recipe.')
     
     argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
