@@ -58,6 +58,14 @@ optional arguments:
   -p PAGE             Sets the number of the first page to fetch.
   --sort {relevance,daily,date,preptime,difficulty,rating}
                       Sets the sort mode for the search results.
+  --filenames {plain,title}
+                      Sets the format for the output file names. Plain: recipe
+                      ID. Title: recipe ID and recipe title.
+  --dirnames {flat,category,date}
+                      Sets the format of the output directory structure. Flat:
+                      all files in the base directory. Category: grouped into
+                      subdirectories based on the recipe category. Date:
+                      grouped into subdirectories based on the creation date.
   --index-only        Don't fetch anything and only add the IDs of all
                       operations to the index. This is useful to build a list
                       of IDs for later consumption.

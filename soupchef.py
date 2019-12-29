@@ -33,6 +33,19 @@ _search_sort_modes = {
     'rating': 'o8'
 }
 
+# file naming modes
+_filename_modes = [
+    'plain',
+    'title'
+]
+
+# directory naming modes
+_dirname_modes = [
+    'flat',
+    'category',
+    'date'
+]
+
 # global variable that keeps track of the time of the last HTTP request
 _last_request_time = datetime.datetime.now()
 
@@ -622,13 +635,29 @@ def _write_json(data: dict, filename: str = None) -> None:
     '''Writes a capture data structure to a json file in the output folder path set in outfolder.'''
     
     if not filename:
-        filename = data['id'] + '.json'
+        title = data["title"]
+        title = title.replace(' - ', '-')
+        title = re.sub(r'\s', '_', title)
+        title = re.sub(r'_+', '_', title)
+        title = re.sub(r'[^\w\-_]', '', title)
+        filename = f'{data["id"]}_{title}.json'
+        if args.filename_mode == 'plain':
+            filename = data['id'] + '.json'
 
-    outfolder = os.path.expanduser(args.outfolder)
-    filepath = outfolder + '/' + filename
+    subdirs = ''
+    if args.dirname_mode == 'category':
+        categories = data['category_breadcrumbs'][3:]
+        categories = [re.sub(r'[^\w]', '-', s) for s in categories]
+        categories = [re.sub(r'-+', '-', s) for s in categories]
+        subdirs = '/'.join(categories)
+    elif args.dirname_mode == 'date':
+        subdirs = data['date'].replace('-', '/')
+
+    outfolder = os.path.expanduser(args.outfolder) + '/' + subdirs + '/'
+    filepath = outfolder + '/'  + filename
 
     if not os.path.exists(outfolder):
-        os.makedirs(outfolder)
+        os.makedirs(outfolder, exist_ok=True)
 
     with open(filepath, mode='w', encoding='utf-8') as outfile:
         json.dump(data, outfile, ensure_ascii=False, indent=2)
@@ -690,6 +719,12 @@ def main():
     argparser.add_argument('--sort', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
         help='Sets the sort mode for the search results.')
     
+    argparser.add_argument('--filenames', default='title', choices=_filename_modes, type=str, dest='filename_mode',
+        help='Sets the format for the output file names. Plain: recipe ID. Title: recipe ID and recipe title.')
+    
+    argparser.add_argument('--dirnames', default='flat', choices=_dirname_modes, type=str, dest='dirname_mode',
+        help='Sets the format of the output directory structure. Flat: all files in the base directory. Category: grouped into subdirectories based on the recipe category. Date: grouped into subdirectories based on the creation date.')
+
     argparser.add_argument('--index-only', action='store_true', dest='index_only',
         help="Don't fetch anything and only add the IDs of all operations to the index. This is useful to build a list of IDs for later consumption.")
 
