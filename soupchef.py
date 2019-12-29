@@ -243,6 +243,7 @@ def fetch_url(url: str) -> dict:
                 'id': id,
                 'title': _get_title(soup),
                 'author': _get_author(soup),
+                'date': _get_date(soup),
                 'rating': _get_rating(soup),
                 'images': _get_images(soup),
                 'keywords': _get_keywords(soup),
@@ -420,9 +421,11 @@ def _fetch_comments(id: str, num: int = -1) -> list:
                     author = owner['username']
                 else:
                     author = None
+                date = elem['createdAt']
                 comments.append({
                     'text': text,
-                    'author': author
+                    'author': author,
+                    'date': date
                 })
         except Exception as e:
             logger.warning(f'Received malformed JSON data for comments {id}.')
@@ -500,6 +503,18 @@ def _get_rating(soup: BeautifulSoup) -> dict:
             }
     
     return rating
+
+def _get_date(soup: BeautifulSoup) -> str:
+    '''Extracts the publishing date of the recipe from JSON data embedded in the page and returns it as a dict.'''
+    
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'aggregateRating' in tag.text, type='application/ld+json', )
+    
+    date = None
+    if json_raw:
+        json_data = json.loads(json_raw.text)
+        date = json_data['datePublished']
+    
+    return date
 
 def _get_breadcrumbs(soup: BeautifulSoup) -> list:
     '''Extracts the category/navigation breadcrumbs from the page and returns them as a list of strings'''
