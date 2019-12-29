@@ -243,6 +243,7 @@ def fetch_url(url: str) -> dict:
                 'id': id,
                 'title': _get_title(soup),
                 'author': _get_author(soup),
+                'rating': _get_rating(soup),
                 'images': _get_images(soup),
                 'keywords': _get_keywords(soup),
                 'category': _get_category(soup),
@@ -466,7 +467,7 @@ def _get_author(soup: BeautifulSoup) -> str:
     return json_data['author']['name']
 
 def _get_keywords(soup: BeautifulSoup) -> list:
-    ''''Extracts the recipe keywords from JSON data embedded in the page and returns them as a list of strings.'''
+    '''Extracts the recipe keywords from JSON data embedded in the page and returns them as a list of strings.'''
     
     json_raw = soup.find(lambda tag:tag.name=='script' and 'keywords' in tag.text, type='application/ld+json', )
     keywords = []
@@ -478,11 +479,27 @@ def _get_keywords(soup: BeautifulSoup) -> list:
     return keywords
 
 def _get_category(soup: BeautifulSoup) -> str:
-    ''''Extracts the recipe category from JSON data embedded in the page and returns it as a string.'''
+    '''Extracts the recipe category from JSON data embedded in the page and returns it as a string.'''
 
     json_raw = soup.find(lambda tag:tag.name=='script' and 'recipeCategory' in tag.text, type='application/ld+json', )
     json_data = json.loads(json_raw.text)
     return json_data['recipeCategory']
+
+def _get_rating(soup: BeautifulSoup) -> dict:
+    '''Extracts the recipe rating and review count from JSON data embedded in the page and returns it as a dict.'''
+
+    json_raw = soup.find(lambda tag:tag.name=='script' and 'aggregateRating' in tag.text, type='application/ld+json', )
+    
+    rating = {}
+    if json_raw:
+        json_data = json.loads(json_raw.text)
+        rating_data = json_data['aggregateRating']
+        rating = {
+            'value': rating_data['ratingValue'],
+            'count': rating_data['reviewCount']
+            }
+    
+    return rating
 
 def _get_breadcrumbs(soup: BeautifulSoup) -> list:
     '''Extracts the category/navigation breadcrumbs from the page and returns them as a list of strings'''
