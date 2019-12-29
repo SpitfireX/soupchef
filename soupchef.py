@@ -259,7 +259,7 @@ def fetch_url(url: str) -> dict:
             logger.debug(str(e))
             return data
 
-        comments = _fetch_comments(id)
+        comments = fetch_comments(id)
         data['comment_count'] = len(comments)
         data['comments'] =comments
 
@@ -386,7 +386,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
     
     return result
 
-def _fetch_comments(id: str, num: int = -1) -> list:
+def fetch_comments(id: str, num: int = -1) -> list:
     '''Gets comments via the undocumented official JSON-API and returns them as a list of comment objects
     with the structure
         Comment:
@@ -398,39 +398,66 @@ def _fetch_comments(id: str, num: int = -1) -> list:
         num = args.comment_num
     
     if num > 0:
-        api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?offset=0&limit={num}&order=1&orderBy=1'
+        api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?limit={num}&order=1&orderBy=1'
     else:
-        api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?offset=0&order=1&orderBy=1'
+        api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?order=1&orderBy=1'
     
-
-    custom_headers = random_headers()
-    # override default since a regular browser would only accept JSON from a JSON URL
-    custom_headers['accept'] = 'application/json'
-    r = requests.get(api_comments_url, headers=custom_headers)
-
+    json_pages = []
     comments = []
-    if not r.ok:
-        logger.warning('Could not fetch comments')
-    else:
-        try:
-            comments_raw = json.loads(r.text, strict=False)
+    offset = 0
+    total_count = 0
 
-            for elem in comments_raw['results']:
-                text = elem['text']
-                owner = elem['owner']
-                if owner:
-                    author = owner['username']
-                else:
-                    author = None
-                date = elem['createdAt']
-                comments.append({
-                    'text': text,
-                    'author': author,
-                    'date': date
-                })
-        except Exception as e:
-            logger.warning(f'Received malformed JSON data for comments {id}.')
-            logger.debug(str(e))
+    while True:
+        for i in range(10):
+            custom_headers = random_headers()
+            # override default since a regular browser would only accept JSON from a JSON URL
+            custom_headers['accept'] = 'application/json'
+            url = api_comments_url + f'&offset={offset}'
+            _wait_rate_limit()
+            r = requests.get(url, headers=custom_headers)
+
+            if not r.ok:
+                logger.warning(f'HTTP error code {r.status_code} for comments for {id} at offset {offset} on try #{i}.')
+            else:
+                break
+        
+        if not r.ok:
+            logger.warning(f'Could not fetch comments for {id} at offset {offset}.')
+        else:
+            try:
+                json_data = json.loads(r.text, strict=False)
+                json_pages.append(json_data)
+            except Exception as e:
+                logger.error(f'Did not receive JSON data for comments for {id} at offset {offset}.')
+
+        total_count = json_data['count']
+
+        if offset + 500 >= total_count:
+            break
+        else:
+            offset += 500
+
+    if not json_pages:
+        logger.error(f'Could not fetch comments for {id}.')
+    else:
+        for json_page in json_pages:
+            try:
+                for elem in json_page['results']:
+                    text = elem['text']
+                    owner = elem['owner']
+                    if owner:
+                        author = owner['username']
+                    else:
+                        author = None
+                    date = elem['createdAt']
+                    comments.append({
+                        'text': text,
+                        'author': author,
+                        'date': date
+                    })
+            except Exception as e:
+                logger.warning(f'Received malformed JSON data for comments {id}.')
+                logger.debug(str(e))
     
     return comments
 
