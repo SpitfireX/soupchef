@@ -546,6 +546,7 @@ def _get_ingredients(soup: BeautifulSoup) -> list:
         if len(data) > 0:
             name = (data[1].text.strip())
             amount = ' '.join(data[0].text.strip().split())
+            amount = None if not amount else amount
             if name:
                 ingredients.append({'name':name, 'amount':amount})
     
