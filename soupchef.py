@@ -241,6 +241,7 @@ def fetch_url(url: str) -> dict:
         try:
             data = {
                 'id': id,
+                'url': url,
                 'title': _get_title(soup),
                 'author': _get_author(soup),
                 'date': _get_date(soup),
