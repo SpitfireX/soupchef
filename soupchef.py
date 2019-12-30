@@ -328,6 +328,21 @@ def fetch_again() -> None:
 
     fetch_ids(index)
 
+def fetch_from_files(files: str) -> None:
+    '''Fetches all IDs or URLs from a file.'''
+    
+    urls = []
+    for file in files:
+        logger.info(f'Fetching recipies from file {file}.')
+        with open(file, mode='r', encoding='utf-8-sig') as infile:
+            for line in infile:
+                line = line.strip()
+                if re.match(r'\d+', line) is not None:
+                    urls.append(id_to_url(line))
+                else:
+                    urls.append(line)
+        fetch_urls(urls)
+
 def fetch_search(search_strings: list) -> None:
     '''Fetches a list of search strings via _fetch_search_page() and fetch_urls(). The number of recipes to fetch per search string is 
     defined by the -n command line argument. The output will be saved in the output folder.
@@ -713,6 +728,8 @@ def main():
         help='Fetches all recipes. Can be combined with -c and -p.')
     mode_group.add_argument('--refresh', action='store_true',
         help='Fetches all recipes in the index again. Can be combined with -c.')
+    mode_group.add_argument('--file', action='store_true',
+        help='Fetches a list of IDs or URLs from the entered files. Can be combined with -c and -r.')
     
     # setting flags
 
@@ -803,6 +820,8 @@ def main():
         fetch_all()
     elif args.refresh:
         fetch_again()
+    elif args.file:
+        fetch_from_files(args.input)
 
 if __name__ == "__main__":
     main()
