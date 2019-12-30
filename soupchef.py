@@ -409,7 +409,7 @@ def _fetch_search_page(search_string: str, page_number: int) -> list:
     
     return result
 
-def fetch_comments(id: str, num: int = -1) -> list:
+def fetch_comments(id: str, num: int = None) -> list:
     '''Gets comments via the undocumented official JSON-API and returns them as a list of comment objects
     with the structure
         Comment:
@@ -417,13 +417,15 @@ def fetch_comments(id: str, num: int = -1) -> list:
             author: str
     '''
     
-    if num < 0:
+    if num is None:
         num = args.comment_num
-    
+
     if num > 0:
         api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?limit={num}&order=1&orderBy=1'
-    else:
+    elif num < 0:
         api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?order=1&orderBy=1'
+    else:
+        return []
     
     json_pages = []
     comments = []
@@ -717,8 +719,8 @@ def main():
         help='''Sets the number of recursion steps to take. Recursion works breadth-first on recommended recipes,
         i.e. the initial list of recipes will be fetched, then their recommended recipes, then the recommended recipes of the recommended recipes, etc.''')
 
-    argparser.add_argument('-c', default=0, type=int, dest='comment_num',
-        help='Sets the number of comments to load per recipe.')
+    argparser.add_argument('-c', default=-1, type=int, dest='comment_num',
+        help='Sets the number of comments to load per recipe. -1 = all.')
     
     argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
         help='Sets the rate limit for HTTP(S) requests in seconds. The value must either be a single constant (e.g. "0.8") or a range (e.g. "0.25-4") that is used for randomization.')
