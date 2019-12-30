@@ -415,34 +415,43 @@ def fetch_comments(id: str, num: int = None) -> list:
         Comment:
             text:   str
             author: str
+            date: str (ISO 8601)
     '''
     
     if num is None:
         num = args.comment_num
 
-    if num > 0:
-        api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?limit={num}&order=1&orderBy=1'
-    elif num < 0:
+    if num != 0:
+        # api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?limit={num}&order=1&orderBy=1'
         api_comments_url = f'https://api.chefkoch.de/v2/recipes/{id}/comments?order=1&orderBy=1'
     else:
         return []
     
+    fetching = True
     json_pages = []
     comments = []
     offset = 0
     total_count = 0
 
-    while True:
+    while fetching:
+        if num >= 0 and num < 500:
+            if num > 0:
+                api_comments_url += f'&limit={num}'
+                fetching = False
+            elif num == 0:
+                break
+        
         for i in range(10):
             custom_headers = random_headers()
             # override default since a regular browser would only accept JSON from a JSON URL
             custom_headers['accept'] = 'application/json'
             url = api_comments_url + f'&offset={offset}'
+            print(url)
             _wait_rate_limit()
             r = requests.get(url, headers=custom_headers)
 
             if not r.ok:
-                logger.warning(f'HTTP error code {r.status_code} for comments for {id} at offset {offset} on try #{i}.')
+                logger.warning(f'HTTP error code {r.status_code} for comments for {id} at offset {offset} on try #{i+1}.')
             else:
                 break
         
@@ -460,6 +469,7 @@ def fetch_comments(id: str, num: int = None) -> list:
         if offset + 500 >= total_count:
             break
         else:
+            num -= 500
             offset += 500
 
     if not json_pages:
