@@ -283,7 +283,10 @@ def fetch_url(url: str) -> dict:
 def fetch_all() -> None:
     '''Fetches all recipes. To get a list of all recipes a modified search is used. For that the regular search results are being used, but with an empty search argument.'''
 
-    total = _get_total_recipe_count()
+    if args.num == -1:
+        total = _get_total_recipe_count()
+    else:
+        total = args.num
     total_pages = math.ceil(total/30)
     logger.info(f'Fetching all recipes with sort Mode "{args.search_sort_mode}":')
     logger.info(f'\t{total} recipes on {total_pages} pages.')
@@ -291,21 +294,28 @@ def fetch_all() -> None:
 
     args.recursion_depth = 0
     
+    fetch = True
     fetched = 0
     page = args.page
-    while True:
+    while fetch:
         logger.info(f'Fetching page: {page} of {total_pages}')
         _wait_rate_limit()
         urls = _fetch_search_page('', page)
 
         if len(urls) > 0:
-            fetch_urls(urls)
-            fetched += len(urls)
+            if fetched + len(urls) <= args.num:
+                fetch_urls(urls)
+                fetched += len(urls)
+            else:
+                end = args.num - fetched
+                fetch_urls(urls[:end])
+                fetched += len(urls[:end])
+                fetch = False
             page += 1
         else:
-            break
+            fetch = False
 
-    logger.info(f'Fetched a total of {fetched} recipe on {page} pages.')
+    logger.info(f'Fetched a total of {fetched} recipes on {page} pages.')
 
 def fetch_again() -> None:
     '''Fetches all recipes in the index again.'''
@@ -700,8 +710,8 @@ def main():
     argparser.add_argument('-o', default='crawl', dest='outfolder',
         help='Sets the output folder.')
 
-    argparser.add_argument('-n', default=30, type=int, dest='num',
-        help='Sets the number of elements to fetch. For search multiples of 30 are sensible values.')
+    argparser.add_argument('-n', default=-1, type=int, dest='num',
+        help='Sets the number of elements to fetch. For search and all multiples of 30 are sensible values. -1 = all.')
 
     argparser.add_argument('-r', default=0, type=int, dest='recursion_depth',
         help='''Sets the number of recursion steps to take. Recursion works breadth-first on recommended recipes,
