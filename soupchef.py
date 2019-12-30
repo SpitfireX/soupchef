@@ -699,17 +699,17 @@ def main():
     # mutually exclusive main modes
 
     mode_group = argparser.add_mutually_exclusive_group(required=True)
-    mode_group.add_argument('-d', '--daily', action='store_true',
+    mode_group.add_argument('--daily', action='store_true',
         help='Downloads the recipe of the day, no further input required. Can be combined with -c and -r.')
-    mode_group.add_argument('-s', '--search', action='store_true',
+    mode_group.add_argument('--search', action='store_true',
         help='Searches for the entered term and fetches the results. Multiple searches need to be separated by spaces. Can be combined with -n, -c, -r and -p.')
-    mode_group.add_argument('-u', '--url', action='store_true',
+    mode_group.add_argument('--url', action='store_true',
         help='Fetches the entered URLs. Can be combined with -c and -r.')
-    mode_group.add_argument('-i', '--id', action='store_true',
+    mode_group.add_argument('--id', action='store_true',
         help='Fetches the entered IDs. Can be combined with -c and -r.')
-    mode_group.add_argument('-z', '--random', action='store_true',
+    mode_group.add_argument('--random', action='store_true',
         help='Fetches a number of random recipes. Can be combined with -n, -c and -r.')
-    mode_group.add_argument('-a', '--all', action='store_true',
+    mode_group.add_argument('--all', action='store_true',
         help='Fetches all recipes. Can be combined with -c and -p.')
     mode_group.add_argument('--refresh', action='store_true',
         help='Fetches all recipes in the index again. Can be combined with -c.')
@@ -725,20 +725,20 @@ def main():
     argparser.add_argument('-n', default=-1, type=int, dest='num',
         help='Sets the number of elements to fetch. For search and all multiples of 30 are sensible values. -1 = all.')
 
-    argparser.add_argument('-r', default=0, type=int, dest='recursion_depth',
+    argparser.add_argument('-r', '--recursion_depth',default=0, type=int, dest='recursion_depth',
         help='''Sets the number of recursion steps to take. Recursion works breadth-first on recommended recipes,
         i.e. the initial list of recipes will be fetched, then their recommended recipes, then the recommended recipes of the recommended recipes, etc.''')
 
     argparser.add_argument('-c', default=-1, type=int, dest='comment_num',
         help='Sets the number of comments to load per recipe. -1 = all.')
     
-    argparser.add_argument('-l', default='0.1-0.5', type=str, dest='rate_limit',
+    argparser.add_argument('-l', '--rate-limit', default='0.1-0.5', type=str, dest='rate_limit',
         help='Sets the rate limit for HTTP(S) requests in seconds. The value must either be a single constant (e.g. "0.8") or a range (e.g. "0.25-4") that is used for randomization.')
 
-    argparser.add_argument('-p', default=1, type=int, dest='page',
+    argparser.add_argument('-p', '--start-page', default=1, type=int, dest='page',
         help='Sets the number of the first page to fetch.')
 
-    argparser.add_argument('--sort', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
+    argparser.add_argument('-s', '--sort-mode', default='relevance', choices=_search_sort_modes.keys(), type=str, dest='search_sort_mode',
         help='Sets the sort mode for the search results.')
     
     argparser.add_argument('--filenames', default='title', choices=_filename_modes, type=str, dest='filename_mode',
