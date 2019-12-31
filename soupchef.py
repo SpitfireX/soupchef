@@ -154,12 +154,14 @@ def fetch_ids(ids: list) -> None:
     urls = [id_to_url(id) for id in ids]
     fetch_urls(urls)
 
-def fetch_urls(urls: list) -> None:
+def fetch_urls(urls: list) -> bool:
     '''Fetches a list of URLs via fetch_url(). The number of recursion steps to take is determined by the -r command line argument.
     The output will be saved in the output folder.
 
     When using recursion the crawler works breadth first. On each step all URLs will be fetched and their related recipe URLs
     provide the next recursion step.
+
+    Returns the number of urls that have been fetched and a bool that is False when a skip occured and fetching should not continue.
     
     Parameters
     ----------
@@ -175,6 +177,7 @@ def fetch_urls(urls: list) -> None:
 
     stack = [urls]
     total_fetched = 0
+    continue_fetching = True
 
     for level in stack:
         logger.info(f'Fetching {len(level)} URL(s) on recursion step {len(stack)-1} of {args.recursion_depth}')
@@ -192,23 +195,32 @@ def fetch_urls(urls: list) -> None:
                     logger.debug(f'Starting fetch {id}')
                     workers[id] = executor.submit(fetch_and_save_url, url)
                 else:
-                    if len(stack) == 1:
-                        # always notify the user when URLs in the first step are being skipped
-                        logger.warning(f'Skipping  duplicate {id} on level 0. Use the -f flag to override this behavior.')
+                    if args.quit_on_skip:
+                        logger.info('Duplicate encountered, stopping fetch.')
+                        continue_fetching = False
+                        break
                     else:
-                        logger.debug(f'Skipping duplicate {id}')
+                        if len(stack) == 1:
+                            # always notify the user when URLs in the first step are being skipped
+                            logger.warning(f'Skipping  duplicate {id} on level 0. Use the -f flag to override this behavior.')
+                        else:
+                            logger.debug(f'Skipping duplicate {id}')
 
-        for id, worker in workers.items():
-            data = worker.result()
-            if data:
-                total_fetched += 1
-                related_urls.extend(id_to_url(x) for x in data['related'])
-                new_ids.append(id)
+            for id, worker in workers.items():
+                data = worker.result()
+                if data:
+                    total_fetched += 1
+                    related_urls.extend(id_to_url(x) for x in data['related'])
+                    new_ids.append(id)
 
         if len(stack) <= args.recursion_depth and len(related_urls) > 0:
             stack.append(related_urls)
+
+        if not continue_fetching:
+            break
     
     logger.info(f'Fetched a total of {total_fetched} recipes.')
+    return total_fetched, continue_fetching
 
 def fetch_and_save_url(url: str) -> dict:
     '''Fetches all relevant data from a single URL, adds it to the index and saves it to the disk. The number of comments to fetch is determined by the -c command line argument.
@@ -294,26 +306,29 @@ def fetch_all() -> None:
 
     args.recursion_depth = 0
     
-    fetch = True
+    continue_fetching = True
     fetched = 0
     page = args.page
-    while fetch:
+    while continue_fetching:
         logger.info(f'Fetching page: {page} of {total_pages}')
         _wait_rate_limit()
         urls = _fetch_search_page('', page)
 
         if len(urls) > 0:
-            if fetched + len(urls) <= args.num:
-                fetch_urls(urls)
-                fetched += len(urls)
+            if fetched + len(urls) <= total:
+                urls_fetched, continue_fetching = fetch_urls(urls)
+                fetched += urls_fetched
+                if fetched == total:
+                    continue_fetching = False
+                else:
+                    page += 1
             else:
-                end = args.num - fetched
-                fetch_urls(urls[:end])
-                fetched += len(urls[:end])
-                fetch = False
-            page += 1
+                end = total - fetched
+                urls_fetched, continue_fetching = fetch_urls(urls[:end])
+                fetched += urls_fetched
+                continue_fetching = False
         else:
-            fetch = False
+            continue_fetching = False
 
     logger.info(f'Fetched a total of {fetched} recipes on {page} pages.')
 
@@ -461,7 +476,7 @@ def fetch_comments(id: str, num: int = None) -> list:
             # override default since a regular browser would only accept JSON from a JSON URL
             custom_headers['accept'] = 'application/json'
             url = api_comments_url + f'&offset={offset}'
-            print(url)
+
             _wait_rate_limit()
             r = requests.get(url, headers=custom_headers)
 
@@ -766,6 +781,9 @@ def main():
 
     argparser.add_argument('--index-only', action='store_true', dest='index_only',
         help="Don't fetch anything and only add the IDs of all operations to the index. This is useful to build a list of IDs for later consumption.")
+
+    argparser.add_argument('--quit-on-skip', action='store_true', dest='quit_on_skip',
+        help="Stop fetching on the first duplicate.")
 
     # verbosity flags
 
