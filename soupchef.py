@@ -491,10 +491,9 @@ def fetch_comments(id: str, num: int = None) -> list:
             try:
                 json_data = json.loads(r.text, strict=False)
                 json_pages.append(json_data)
+                total_count = json_data['count']
             except Exception as e:
                 logger.error(f'Did not receive JSON data for comments for {id} at offset {offset}.')
-
-        total_count = json_data['count']
 
         if offset + 500 >= total_count:
             break
