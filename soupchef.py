@@ -234,8 +234,6 @@ def fetch_and_save_url(url: str) -> dict:
     
     if data and not _shutdown:
         index.add(data['id'])
-    
-    if not _shutdown:
         _write_json(data)
     
     return data
